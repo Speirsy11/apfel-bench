@@ -14,4 +14,5 @@ from apfel_bench.benchmarks import (  # noqa: F401
     code_execution,
     multi_constraint,
     adversarial,
+    hallucination,
 )
