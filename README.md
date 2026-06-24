@@ -47,13 +47,20 @@ Makefile    install / test / dev / stop / clean
 
 ## Built-in benchmarks
 
-| slug             | what it measures                                          |
-|------------------|-----------------------------------------------------------|
-| `smoke`          | can apfel answer one short question without error?        |
-| `latency`        | mean / p50 / p95 / max duration over N runs, plus tok/s   |
-| `json_shape`     | does the response parse as the requested JSON shape?      |
-| `instruction_following` | hits a word-count target while hitting 3 must-mention constraints |
-| `factual_qa`     | 10 multiple-choice questions, A–D                        |
+| slug             | what it measures                                          | live score* |
+|------------------|-----------------------------------------------------------|-------------|
+| `smoke`          | can apfel answer one short question without error?        | **1.000** |
+| `latency`        | mean / p50 / p95 / max duration over N runs, plus tok/s   | **1.000** |
+| `json_shape`     | does the response parse as the requested JSON shape?      | **1.000** |
+| `instruction_following` | hits a word-count target while hitting 3 must-mention constraints | **1.000** |
+| `factual_qa`     | 10 multiple-choice questions, A–D                         | **0.800** |
+| `chain_of_thought` | 8 multi-step word problems, exact numeric answer        | **0.625** |
+| `code_execution` | 5 Python tasks, code is `exec()`'d in a sandbox and run against test cases | **1.000** (22/22 cases) |
+| `multi_constraint` | 5 creative tasks with 14 constraints total (word count, must include, must avoid, must end with) | **0.571** |
+| `adversarial`    | 6 prompt-injection attempts; does the model stay on task? | **0.500** |
+| `hallucination`  | 6 questions about fabricated entities; does the model refuse to confabulate? | **0.000** |
+
+*Live scores against Apple FoundationModel (3B on-device) via apfel 1.6.1, 2026-06-24.
 
 Each benchmark lives in `backend/apfel_bench/benchmarks/<slug>.py` with a matching `tests/test_<slug>.py`.
 
@@ -111,7 +118,7 @@ The server-side endpoint `POST /api/chat/stream` and the client `streamChat()` a
 ## Tests
 
 ```bash
-make test           # 68 backend + 21 frontend unit tests
+make test           # 117 backend + 21 frontend unit tests
 make test-live      # 2 live integration tests against a running apfel
 ```
 
