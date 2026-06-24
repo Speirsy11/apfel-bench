@@ -48,6 +48,31 @@ class SqliteStorage:
             c.execute("CREATE INDEX IF NOT EXISTS idx_results_benchmark ON results(benchmark)")
             c.execute("CREATE INDEX IF NOT EXISTS idx_results_started_at ON results(started_at)")
 
+            c.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chat_sessions (
+                    id TEXT PRIMARY KEY,
+                    title TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
+            c.execute("CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated_at ON chat_sessions(updated_at)")
+            c.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chat_messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (session_id) REFERENCES chat_sessions(id)
+                )
+                """
+            )
+            c.execute("CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id)")
+
     def save(self, result: BenchmarkResult) -> str:
         run_id = uuid.uuid4().hex
         with self._conn() as c:
@@ -104,3 +129,63 @@ class SqliteStorage:
         d["expected"] = json.loads(d["expected"]) if d["expected"] else None
         d["metadata"] = json.loads(d["metadata"]) if d["metadata"] else {}
         return d
+
+    # ---- chat ----
+
+    def create_chat_session(self, title: str | None = None) -> str:
+        from datetime import datetime as _dt
+        import uuid as _uuid
+
+        sid = _uuid.uuid4().hex
+        now = _dt.now().isoformat()
+        with self._conn() as c:
+            c.execute(
+                "INSERT INTO chat_sessions (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                (sid, title, now, now),
+            )
+        return sid
+
+    def touch_chat_session(self, session_id: str) -> None:
+        from datetime import datetime as _dt
+
+        with self._conn() as c:
+            c.execute(
+                "UPDATE chat_sessions SET updated_at = ? WHERE id = ?",
+                (_dt.now().isoformat(), session_id),
+            )
+
+    def rename_chat_session(self, session_id: str, title: str) -> None:
+        with self._conn() as c:
+            c.execute(
+                "UPDATE chat_sessions SET title = ? WHERE id = ?",
+                (title, session_id),
+            )
+
+    def add_chat_message(self, session_id: str, role: str, content: str) -> int:
+        from datetime import datetime as _dt
+
+        with self._conn() as c:
+            cur = c.execute(
+                "INSERT INTO chat_messages (session_id, role, content, created_at) VALUES (?, ?, ?, ?)",
+                (session_id, role, content, _dt.now().isoformat()),
+            )
+        self.touch_chat_session(session_id)
+        return cur.lastrowid
+
+    def list_chat_sessions(self, limit: int = 50) -> list[dict[str, Any]]:
+        with self._conn() as c:
+            c.row_factory = sqlite3.Row
+            rows = c.execute(
+                "SELECT * FROM chat_sessions ORDER BY updated_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_chat_messages(self, session_id: str) -> list[dict[str, Any]]:
+        with self._conn() as c:
+            c.row_factory = sqlite3.Row
+            rows = c.execute(
+                "SELECT * FROM chat_messages WHERE session_id = ? ORDER BY id ASC",
+                (session_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]

@@ -63,4 +63,52 @@ def create_app(*, client: ApfelClient, storage: SqliteStorage) -> FastAPI:
         row.setdefault("run_id", row.get("id"))
         return row
 
+    @app.post("/api/chat")
+    async def post_chat(payload: dict) -> dict[str, Any]:
+        """Send a chat turn to apfel, persist it, return the reply + session id.
+
+        Body: {"session_id"?: str, "messages": [{"role": str, "content": str}, ...]}
+        """
+        from apfel_bench.client import ChatMessage, ChatRequest
+
+        session_id = payload.get("session_id")
+        raw_messages = payload.get("messages") or []
+        if not raw_messages:
+            raise HTTPException(status_code=400, detail="messages must be a non-empty list")
+
+        messages = [ChatMessage(role=m["role"], content=m["content"]) for m in raw_messages]
+
+        # If client didn't supply a session id, start a new one and use the
+        # first user message as the session title.
+        if not session_id:
+            session_id = app.state.storage.create_chat_session()
+            first_user = next((m.content for m in messages if m.role == "user"), None)
+            if first_user:
+                title = first_user.strip().splitlines()[0][:60].strip()
+                if title:
+                    app.state.storage.rename_chat_session(session_id, title)
+
+        # Persist the new user messages from this turn.
+        for m in messages:
+            app.state.storage.add_chat_message(session_id, m.role, m.content)
+
+        request = ChatRequest(model="apple-foundationmodel", messages=messages)
+        response = await app.state.apfel.chat(request)
+        app.state.storage.add_chat_message(session_id, "assistant", response.content)
+
+        return {
+            "session_id": session_id,
+            "reply": response.content,
+            "prompt_tokens": response.prompt_tokens,
+            "completion_tokens": response.completion_tokens,
+        }
+
+    @app.get("/api/chat/sessions")
+    def list_chat_sessions(limit: int = 50) -> list[dict[str, Any]]:
+        return app.state.storage.list_chat_sessions(limit=limit)
+
+    @app.get("/api/chat/sessions/{session_id}/messages")
+    def list_chat_messages(session_id: str) -> list[dict[str, Any]]:
+        return app.state.storage.list_chat_messages(session_id)
+
     return app
