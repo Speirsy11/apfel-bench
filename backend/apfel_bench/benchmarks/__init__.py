@@ -12,4 +12,5 @@ from apfel_bench.benchmarks import (  # noqa: F401
     factual_qa,
     chain_of_thought,
     code_execution,
+    multi_constraint,
 )
