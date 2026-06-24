@@ -11,4 +11,5 @@ from apfel_bench.benchmarks import (  # noqa: F401
     instruction_following,
     factual_qa,
     chain_of_thought,
+    code_execution,
 )
