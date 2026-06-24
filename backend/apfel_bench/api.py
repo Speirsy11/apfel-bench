@@ -111,4 +111,84 @@ def create_app(*, client: ApfelClient, storage: SqliteStorage) -> FastAPI:
     def list_chat_messages(session_id: str) -> list[dict[str, Any]]:
         return app.state.storage.list_chat_messages(session_id)
 
+    @app.post("/api/chat/stream")
+    async def stream_chat(payload: dict):
+        """SSE stream of the assistant reply.
+
+        Body: {"session_id"?: str, "messages": [{"role": str, "content": str}, ...]}
+
+        Emits one `data: {"type": "chunk", "content": "..."}` event per token
+        delta, then a final `data: {"type": "done", ...}` event with the
+        assembled reply, session_id, and finish_reason. User messages are
+        persisted at start; the assistant message is persisted on completion.
+        """
+        import json as _json
+        import time as _time
+        from sse_starlette.sse import EventSourceResponse
+
+        from apfel_bench.client import ChatMessage, ChatRequest
+
+        raw_messages = payload.get("messages") or []
+        if not raw_messages:
+            raise HTTPException(status_code=400, detail="messages must be a non-empty list")
+
+        session_id = payload.get("session_id")
+        if not session_id:
+            session_id = app.state.storage.create_chat_session()
+            first_user = next((m["content"] for m in raw_messages if m["role"] == "user"), None)
+            if first_user:
+                title = first_user.strip().splitlines()[0][:60].strip()
+                if title:
+                    app.state.storage.rename_chat_session(session_id, title)
+
+        for m in raw_messages:
+            app.state.storage.add_chat_message(session_id, m["role"], m["content"])
+
+        messages = [ChatMessage(role=m["role"], content=m["content"]) for m in raw_messages]
+        request = ChatRequest(model="apple-foundationmodel", messages=messages, stream=True)
+
+        async def event_generator():
+            assembled: list[str] = []
+            finish_reason: str | None = None
+            start = _time.perf_counter()
+            ttft_ms: int | None = None
+            try:
+                async for chunk in app.state.apfel.stream_chat(request):
+                    if chunk.content_delta:
+                        if ttft_ms is None:
+                            ttft_ms = int((_time.perf_counter() - start) * 1000)
+                        assembled.append(chunk.content_delta)
+                        yield {
+                            "event": "message",
+                            "data": _json.dumps(
+                                {"type": "chunk", "content": chunk.content_delta}
+                            ),
+                        }
+                    if chunk.finish_reason:
+                        finish_reason = chunk.finish_reason
+            except Exception as e:
+                yield {
+                    "event": "message",
+                    "data": _json.dumps({"type": "error", "message": repr(e)}),
+                }
+                return
+
+            full = "".join(assembled)
+            app.state.storage.add_chat_message(session_id, "assistant", full)
+            yield {
+                "event": "message",
+                "data": _json.dumps(
+                    {
+                        "type": "done",
+                        "session_id": session_id,
+                        "full_response": full,
+                        "finish_reason": finish_reason,
+                        "ttft_ms": ttft_ms,
+                        "duration_ms": int((_time.perf_counter() - start) * 1000),
+                    }
+                ),
+            }
+
+        return EventSourceResponse(event_generator())
+
     return app

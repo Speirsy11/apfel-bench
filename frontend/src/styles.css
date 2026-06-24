@@ -328,6 +328,17 @@ tr:last-child td {
   margin: 8px 0;
 }
 
+.streaming-caret {
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--accent);
+  animation: blink 1s steps(2) infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
 .empty {
   color: var(--fg-dim);
   font-style: italic;

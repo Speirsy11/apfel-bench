@@ -7,7 +7,7 @@ behind the same ChatRequest/ChatResponse shapes.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, AsyncIterator, Protocol
 
 import httpx
 
@@ -42,6 +42,8 @@ class ApfelClient(Protocol):
     """Anything that can send a ChatRequest and return a ChatResponse."""
 
     async def chat(self, request: ChatRequest) -> ChatResponse: ...
+
+    def stream_chat(self, request: ChatRequest) -> AsyncIterator["ChatChunk"]: ...
 
     async def aclose(self) -> None: ...
 
@@ -88,3 +90,31 @@ class HttpApfelClient:
 
     async def aclose(self) -> None:
         await self._client.aclose()
+
+    async def stream_chat(self, request: ChatRequest) -> AsyncIterator["ChatChunk"]:
+        """POST with `stream: true` and yield typed ChatChunks as they arrive.
+
+        Reuses the same `sse_decode_bytes` + `openai_chat_chunks` pipeline
+        that any other OpenAI-compatible provider can plug into.
+        """
+        from apfel_bench.streaming import ChatChunk, openai_chat_chunks, sse_decode_bytes
+
+        body: dict = {
+            "model": request.model,
+            "messages": [{"role": m.role, "content": m.content} for m in request.messages],
+            "stream": True,
+        }
+        if request.temperature is not None:
+            body["temperature"] = request.temperature
+        if request.max_tokens is not None:
+            body["max_tokens"] = request.max_tokens
+        for k, v in request.metadata.items():
+            body[k] = v
+
+        # Use a streaming request; raise_for_status on the initial headers,
+        # then iterate the body bytes. Cancelling the consumer cancels the
+        # network read cleanly.
+        async with self._client.stream("POST", "/chat/completions", json=body) as resp:
+            resp.raise_for_status()
+            async for chunk in openai_chat_chunks(sse_decode_bytes(resp.aiter_bytes())):
+                yield chunk

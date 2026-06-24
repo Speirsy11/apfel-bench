@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { postChat } from "../api";
+import { streamChat, type StreamEvent } from "../api";
 import type { ChatMessage } from "../types";
 
 type Session = { id: string; title: string; updated_at: string };
 
-const STORAGE_KEY = "apfel-bench.chat.session";
+const STORAGE_KEY = "apfel-…sion";
 
 export function ChatPanel() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -12,14 +12,16 @@ export function ChatPanel() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [streaming, setStreaming] = useState("");
   const [error, setError] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => { refreshSessions(); }, []);
   useEffect(() => { if (activeId) loadSession(activeId); }, [activeId]);
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+  }, [messages, streaming]);
 
   async function refreshSessions() {
     try {
@@ -37,15 +39,25 @@ export function ChatPanel() {
       if (!r.ok) throw new Error(`${r.status}`);
       const data: { role: string; content: string }[] = await r.json();
       setMessages(data.map((m) => ({ role: m.role as ChatMessage["role"], content: m.content })));
+      setStreaming("");
     } catch (e) {
       setError(String(e));
     }
   }
 
-  async function newChat() {
+  function newChat() {
+    abortRef.current?.abort();
     setActiveId(null);
     setMessages([]);
+    setStreaming("");
     localStorage.removeItem(STORAGE_KEY);
+  }
+
+  function pickSession(id: string) {
+    abortRef.current?.abort();
+    setActiveId(id);
+    setStreaming("");
+    localStorage.setItem(STORAGE_KEY, id);
   }
 
   async function send() {
@@ -54,26 +66,45 @@ export function ChatPanel() {
     setInput("");
     setError(null);
     setSending(true);
+    setStreaming("");
+
     const userMsg: ChatMessage = { role: "user", content: text };
-    const next = [...messages, userMsg];
-    setMessages([...next, { role: "assistant", content: "" }]);
+    const base = [...messages, userMsg];
+    setMessages([...base, { role: "assistant", content: "" }]);
+
+    abortRef.current = new AbortController();
+    let acc = "";
     try {
-      const res = await postChat(next);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.detail ?? `${res.status}`);
+      for await (const ev of streamChat(base, activeId, abortRef.current.signal)) {
+        if (ev.type === "chunk") {
+          acc += ev.content;
+          setStreaming(acc);
+        } else if (ev.type === "done") {
+          const finalAssistant: ChatMessage = { role: "assistant", content: ev.full_response };
+          setMessages([...base, finalAssistant]);
+          setStreaming("");
+          if (!activeId) {
+            localStorage.setItem(STORAGE_KEY, ev.session_id);
+            setActiveId(ev.session_id);
+          }
+          refreshSessions();
+        } else if (ev.type === "error") {
+          throw new Error(ev.message);
+        }
       }
-      const body = await res.json();
-      setMessages([...next, { role: "assistant", content: body.reply }]);
-      localStorage.setItem(STORAGE_KEY, body.session_id);
-      setActiveId(body.session_id);
-      refreshSessions();
     } catch (e) {
       setError(String(e));
-      setMessages(next);
+      // Roll back the empty assistant placeholder
+      setMessages(base);
+      setStreaming("");
     } finally {
       setSending(false);
+      abortRef.current = null;
     }
+  }
+
+  function cancel() {
+    abortRef.current?.abort();
   }
 
   return (
@@ -88,7 +119,7 @@ export function ChatPanel() {
           <div
             key={s.id}
             className={`chat-session ${activeId === s.id ? "active" : ""}`}
-            onClick={() => { setActiveId(s.id); localStorage.setItem(STORAGE_KEY, s.id); }}
+            onClick={() => pickSession(s.id)}
           >
             <span>{s.title || "Untitled"}</span>
             <span className="when">{new Date(s.updated_at).toLocaleString()}</span>
@@ -98,23 +129,33 @@ export function ChatPanel() {
       <section className="chat-pane">
         <div className="chat-messages" ref={scroller} data-testid="chat-messages">
           {messages.length === 0 && <div className="empty">Say hi to the model.</div>}
-          {messages.map((m, i) => (
-            <div key={i} className={`chat-msg ${m.role}`}>{m.content}</div>
-          ))}
+          {messages.map((m, i) => {
+            const isStreamingAssistant = streaming && i === messages.length - 1 && m.role === "assistant";
+            return (
+              <div key={i} className={`chat-msg ${m.role}`}>
+                {isStreamingAssistant ? streaming : m.content}
+                {isStreamingAssistant && <span className="streaming-caret"> ▍</span>}
+              </div>
+            );
+          })}
         </div>
         {error && <div className="error" style={{ margin: "0 12px 8px" }}>{error}</div>}
         <div className="chat-input-row">
           <input
             value={input}
-            placeholder={sending ? "Thinking…" : "Type a message"}
+            placeholder={sending ? "Streaming…" : "Type a message"}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
             disabled={sending}
             data-testid="chat-input"
           />
-          <button className="btn btn-primary" onClick={send} disabled={sending || !input.trim()} data-testid="chat-send">
-            Send
-          </button>
+          {sending ? (
+            <button className="btn" onClick={cancel} data-testid="chat-cancel">Stop</button>
+          ) : (
+            <button className="btn btn-primary" onClick={send} disabled={!input.trim()} data-testid="chat-send">
+              Send
+            </button>
+          )}
         </div>
       </section>
     </div>
