@@ -29,6 +29,14 @@ def test_check_constraints_word_count_passes():
     assert detail["word_count"]
 
 
+def test_check_constraints_handles_word_count_none():
+    # word_count key present but value is None → skip the check, don't crash
+    item = {"word_count": None, "must_include": ["rain"], "must_avoid": [], "must_end_with": None}
+    detail = _check_constraints("rain falls", item)
+    assert "word_count" not in detail
+    assert detail["must_include"]
+
+
 def test_check_constraints_word_count_off_by_one_fails():
     item = {"word_count": (5, 5), "must_include": [], "must_avoid": [], "must_end_with": None}
     detail = _check_constraints("one two three four", item)  # 4 words

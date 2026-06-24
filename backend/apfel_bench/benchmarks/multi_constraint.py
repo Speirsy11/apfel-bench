@@ -21,7 +21,7 @@ def _word_count(text: str) -> int:
 
 def _check_constraints(text: str, item: dict) -> dict[str, bool]:
     out: dict[str, bool] = {}
-    if "word_count" in item:
+    if item.get("word_count") is not None:
         lo, hi = item["word_count"]
         n = _word_count(text)
         out["word_count"] = lo <= n <= hi
