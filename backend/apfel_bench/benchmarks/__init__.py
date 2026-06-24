@@ -9,4 +9,6 @@ from apfel_bench.benchmarks import (  # noqa: F401
     latency,
     json_shape,
     instruction_following,
+    factual_qa,
+    chain_of_thought,
 )
