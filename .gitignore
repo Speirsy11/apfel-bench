@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.db
+*.sqlite
+*.sqlite3
+backend/data/
+!backend/data/.gitkeep
+
+# Node / Bun
+node_modules/
+dist/
+.vite/
+.bun/
+*.log
+
+# Editor
+.DS_Store
+.idea/
+.vscode/
+
+# Apfel
+.env

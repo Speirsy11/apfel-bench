@@ -1,0 +1,2 @@
+# SQLite files live here at runtime (gitignored)
+# Default DB path: data/results.sqlite
