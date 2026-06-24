@@ -339,6 +339,16 @@ tr:last-child td {
   50% { opacity: 0; }
 }
 
+.result-row { cursor: pointer; }
+.result-row.open { background: var(--surface-2); }
+.result-row .caret { color: var(--muted); width: 16px; }
+.result-detail { padding: 12px 8px; background: var(--surface-2); border-radius: 6px; }
+.result-detail .kv > div { margin-bottom: 12px; }
+.result-detail pre { background: var(--surface); padding: 8px; border-radius: 4px; font-size: 12px; white-space: pre-wrap; max-height: 240px; overflow: auto; }
+.latency-chart { margin: 4px 0 12px; }
+.latency-stats { display: flex; gap: 16px; font-size: 12px; color: var(--muted); }
+.latency-stats b { color: var(--fg); margin-right: 4px; }
+
 .empty {
   color: var(--fg-dim);
   font-style: italic;
