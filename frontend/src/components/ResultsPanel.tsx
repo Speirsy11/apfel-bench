@@ -20,7 +20,12 @@ export function ResultsPanel() {
   if (rows.length === 0) return <div className="empty">No results yet — run a benchmark first.</div>;
 
   return (
-    <table data-testid="results-table">
+    <div className="table-wrap">
+      <div className="table-head">
+        <span className="table-count">{rows.length} run{rows.length === 1 ? "" : "s"}</span>
+        <span className="table-hint">Select a row for prompt, response &amp; latency</span>
+      </div>
+      <table data-testid="results-table">
       <thead>
         <tr>
           <th></th>
@@ -80,6 +85,7 @@ export function ResultsPanel() {
           );
         })}
       </tbody>
-    </table>
+      </table>
+    </div>
   );
 }

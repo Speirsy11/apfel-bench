@@ -4,7 +4,7 @@ import type { ChatMessage } from "../types";
 
 type Session = { id: string; title: string; updated_at: string };
 
-const STORAGE_KEY = "apfel-…sion";
+const STORAGE_KEY = "apfel-chat-session";
 
 export function ChatPanel() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -121,10 +121,10 @@ export function ChatPanel() {
       />
       <aside className="chat-sessions" aria-label="Chat sessions">
         <h4>Sessions</h4>
-        <button className="btn" style={{ width: "100%", marginBottom: 8 }} onClick={newChat} data-testid="new-chat">
+        <button className="btn btn-newchat" onClick={newChat} data-testid="new-chat">
           + New chat
         </button>
-        {sessions.length === 0 && <div className="muted" style={{ fontSize: 12 }}>No chats yet.</div>}
+        {sessions.length === 0 && <div className="muted sessions-empty">No chats yet.</div>}
         {sessions.map((s) => (
           <div
             key={s.id}
@@ -137,8 +137,20 @@ export function ChatPanel() {
         ))}
       </aside>
       <section className="chat-pane">
+        <div className="chat-pane-head">
+          <span className="chat-model">
+            <span className="status-dot" /> FoundationModel · 3B
+          </span>
+          <span className="chat-model-sub">on-device · streaming</span>
+        </div>
         <div className="chat-messages" ref={scroller} data-testid="chat-messages">
-          {messages.length === 0 && <div className="empty">Say hi to the model.</div>}
+          {messages.length === 0 && (
+            <div className="chat-empty">
+              <div className="chat-empty-mark">⌘</div>
+              <p className="chat-empty-title">Start a conversation</p>
+              <p className="chat-empty-sub">Messages stream from the on-device model with TTFT measured.</p>
+            </div>
+          )}
           {messages.map((m, i) => {
             const isStreamingAssistant = streaming && i === messages.length - 1 && m.role === "assistant";
             return (

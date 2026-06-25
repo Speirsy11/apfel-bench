@@ -78,10 +78,16 @@ def create_app(*, client: ApfelClient, storage: SqliteStorage) -> FastAPI:
 
         messages = [ChatMessage(role=m["role"], content=m["content"]) for m in raw_messages]
 
-        # If client didn't supply a session id, start a new one and use the
-        # first user message as the session title.
+        # Ensure a session row exists. If the client supplied no id, mint one;
+        # if it supplied a stale id with no backing row, create it so the
+        # session stays visible in the list. Title newly-created sessions from
+        # the first user message.
         if not session_id:
             session_id = app.state.storage.create_chat_session()
+            is_new = True
+        else:
+            is_new = app.state.storage.ensure_chat_session(session_id)
+        if is_new:
             first_user = next((m.content for m in messages if m.role == "user"), None)
             if first_user:
                 title = first_user.strip().splitlines()[0][:60].strip()
@@ -135,6 +141,10 @@ def create_app(*, client: ApfelClient, storage: SqliteStorage) -> FastAPI:
         session_id = payload.get("session_id")
         if not session_id:
             session_id = app.state.storage.create_chat_session()
+            is_new = True
+        else:
+            is_new = app.state.storage.ensure_chat_session(session_id)
+        if is_new:
             first_user = next((m["content"] for m in raw_messages if m["role"] == "user"), None)
             if first_user:
                 title = first_user.strip().splitlines()[0][:60].strip()
