@@ -18,6 +18,7 @@ dist/
 .vite/
 .bun/
 *.log
+*.tsbuildinfo
 
 # Editor
 .DS_Store

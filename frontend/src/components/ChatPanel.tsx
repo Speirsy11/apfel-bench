@@ -54,6 +54,7 @@ export function ChatPanel() {
     setActiveId(null);
     setMessages([]);
     setStreaming("");
+    setDrawerOpen(false);
     localStorage.removeItem(STORAGE_KEY);
   }
 
