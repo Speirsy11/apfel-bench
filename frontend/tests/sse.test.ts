@@ -83,4 +83,26 @@ describe("parseSSE", () => {
     const events = await collect(parseSSE(sseResponse([])));
     expect(events).toEqual([]);
   });
+
+  it("parses CRLF event boundaries (SSE spec)", async () => {
+    // sse-starlette emits `\r\n\r\n` between events. The parser must accept
+    // CRLF, not just LF, otherwise no events are ever yielded.
+    const events = await collect(
+      parseSSE(
+        sseResponse([
+          bytes('event: message\r\ndata: {"i":0}\r\n\r\n'),
+          bytes('event: message\r\ndata: {"i":1}\r\n\r\n'),
+        ]),
+      ),
+    );
+    expect(events).toEqual([{ i: 0 }, { i: 1 }]);
+  });
+
+  it("handles bare-CR line endings", async () => {
+    // Some legacy servers send `\r\r` as a separator. Accept it too.
+    const events = await collect(
+      parseSSE(sseResponse([bytes('data: {"x":1}\r\r')])),
+    );
+    expect(events).toEqual([{ x: 1 }]);
+  });
 });
