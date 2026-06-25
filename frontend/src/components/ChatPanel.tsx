@@ -14,6 +14,7 @@ export function ChatPanel() {
   const [sending, setSending] = useState(false);
   const [streaming, setStreaming] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const scroller = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -22,6 +23,9 @@ export function ChatPanel() {
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
   }, [messages, streaming]);
+
+  // Close the mobile drawer when a session is picked or a new chat is started.
+  useEffect(() => { setDrawerOpen(false); }, [activeId]);
 
   async function refreshSessions() {
     try {
@@ -108,8 +112,13 @@ export function ChatPanel() {
   }
 
   return (
-    <div className="chat-shell">
-      <aside className="chat-sessions">
+    <div className={`chat-shell ${drawerOpen ? "drawer-open" : ""}`}>
+      <div
+        className="drawer-scrim"
+        onClick={() => setDrawerOpen(false)}
+        aria-hidden="true"
+      />
+      <aside className="chat-sessions" aria-label="Chat sessions">
         <h4>Sessions</h4>
         <button className="btn" style={{ width: "100%", marginBottom: 8 }} onClick={newChat} data-testid="new-chat">
           + New chat
@@ -141,6 +150,15 @@ export function ChatPanel() {
         </div>
         {error && <div className="error" style={{ margin: "0 12px 8px" }}>{error}</div>}
         <div className="chat-input-row">
+          <button
+            className="btn drawer-toggle"
+            onClick={() => setDrawerOpen((o) => !o)}
+            aria-label="Toggle sessions"
+            aria-expanded={drawerOpen}
+            data-testid="drawer-toggle"
+          >
+            ☰
+          </button>
           <input
             value={input}
             placeholder={sending ? "Streaming…" : "Type a message"}
