@@ -145,6 +145,25 @@ class SqliteStorage:
             )
         return sid
 
+    def ensure_chat_session(self, session_id: str, title: str | None = None) -> bool:
+        """Insert a session row for ``session_id`` if one doesn't exist yet.
+
+        Returns True if a new row was created. This keeps a session visible in
+        the list even when the client supplies a ``session_id`` (e.g. a stale
+        one persisted in localStorage) that has no backing row — otherwise its
+        messages accumulate invisibly.
+        """
+        from datetime import datetime as _dt
+
+        now = _dt.now().isoformat()
+        with self._conn() as c:
+            cur = c.execute(
+                "INSERT OR IGNORE INTO chat_sessions (id, title, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?)",
+                (session_id, title, now, now),
+            )
+        return cur.rowcount > 0
+
     def touch_chat_session(self, session_id: str) -> None:
         from datetime import datetime as _dt
 

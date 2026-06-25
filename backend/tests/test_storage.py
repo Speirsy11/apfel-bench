@@ -119,3 +119,25 @@ def test_storage_get_returns_none_for_unknown_id():
     with tempfile.TemporaryDirectory() as d:
         store = SqliteStorage(Path(d) / "results.sqlite")
         assert store.get("nope") is None
+
+
+def test_ensure_chat_session_creates_missing_row_and_is_idempotent():
+    from apfel_bench.storage import SqliteStorage
+
+    with tempfile.TemporaryDirectory() as d:
+        store = SqliteStorage(Path(d) / "results.sqlite")
+
+        # A stale client session id with no backing row: adding messages alone
+        # leaves it invisible in the list.
+        store.add_chat_message("stale-id", "user", "hi")
+        assert store.list_chat_sessions() == []
+
+        # ensure_chat_session backfills the row and reports it as newly created.
+        assert store.ensure_chat_session("stale-id", title="hi") is True
+        sessions = store.list_chat_sessions()
+        assert [s["id"] for s in sessions] == ["stale-id"]
+        assert sessions[0]["title"] == "hi"
+
+        # Second call is a no-op for an existing row.
+        assert store.ensure_chat_session("stale-id", title="other") is False
+        assert store.list_chat_sessions()[0]["title"] == "hi"

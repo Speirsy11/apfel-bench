@@ -53,12 +53,26 @@ export function BenchmarksPanel({ onRanResult }: { onRanResult?: () => void }) {
       <div className="benchmark-list">
         {benchmarks.map((b) => {
           const lr = last[b.slug];
+          const isRunning = running === b.slug;
           return (
-            <div className="benchmark-card" key={b.slug}>
-              <div>
-                <h3>{b.name}</h3>
+            <div className={`benchmark-card ${isRunning ? "is-running" : ""}`} key={b.slug}>
+              <div className="bc-main">
+                <div className="bc-head">
+                  <h3>{b.name}</h3>
+                  <span className="slug">{b.slug}</span>
+                </div>
                 <p>{b.description}</p>
-                <span className="slug">{b.slug}</span>
+                <div className="bc-metrics">
+                  {lr ? (
+                    <>
+                      <ScorePill score={lr.score} />
+                      <span className="metric"><span className="metric-k">latency</span>{lr.duration_ms}ms</span>
+                      <span className="metric"><span className="metric-k">tokens</span>{lr.prompt_tokens}+{lr.completion_tokens}</span>
+                    </>
+                  ) : (
+                    <span className="metric metric-empty">not run yet</span>
+                  )}
+                </div>
               </div>
               <div className="actions">
                 <button
@@ -67,13 +81,8 @@ export function BenchmarksPanel({ onRanResult }: { onRanResult?: () => void }) {
                   onClick={() => run(b.slug)}
                   data-testid={`run-${b.slug}`}
                 >
-                  {running === b.slug ? "Running…" : "Run"}
+                  {isRunning ? "Running…" : lr ? "Re-run" : "Run"}
                 </button>
-                {lr && (
-                  <div className="last-result">
-                    Last: <ScorePill score={lr.score} /> · {lr.duration_ms}ms · {lr.prompt_tokens}+{lr.completion_tokens}t
-                  </div>
-                )}
               </div>
             </div>
           );
