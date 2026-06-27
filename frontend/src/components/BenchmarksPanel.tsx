@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { listBenchmarks, listResults, runBenchmark } from "../api";
 import type { BenchmarkMeta, BenchmarkResult } from "../types";
+import { BenchmarkDetail } from "./BenchmarkDetail";
 
 type LastBySlug = Record<string, BenchmarkResult | undefined>;
 
@@ -9,6 +10,7 @@ export function BenchmarksPanel({ onRanResult }: { onRanResult?: () => void }) {
   const [last, setLast] = useState<LastBySlug>({});
   const [running, setRunning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
 
   useEffect(() => {
     refresh();
@@ -47,6 +49,21 @@ export function BenchmarksPanel({ onRanResult }: { onRanResult?: () => void }) {
     return <div className="empty">No benchmarks registered. Add one under <code>backend/apfel_bench/benchmarks/</code> and import it in <code>benchmarks/__init__.py</code>.</div>;
   }
 
+  const selectedBench = selected ? benchmarks.find((b) => b.slug === selected) : undefined;
+  if (selectedBench) {
+    return (
+      <BenchmarkDetail
+        benchmark={selectedBench}
+        onBack={() => {
+          setSelected(null);
+          // Pull the latest scores back into the grid after viewing/running.
+          refresh();
+        }}
+        onRanResult={onRanResult}
+      />
+    );
+  }
+
   return (
     <div>
       {error && <div className="error">{error}</div>}
@@ -55,7 +72,20 @@ export function BenchmarksPanel({ onRanResult }: { onRanResult?: () => void }) {
           const lr = last[b.slug];
           const isRunning = running === b.slug;
           return (
-            <div className={`benchmark-card ${isRunning ? "is-running" : ""}`} key={b.slug}>
+            <div
+              className={`benchmark-card is-clickable ${isRunning ? "is-running" : ""}`}
+              key={b.slug}
+              role="button"
+              tabIndex={0}
+              onClick={() => setSelected(b.slug)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setSelected(b.slug);
+                }
+              }}
+              data-testid={`bench-card-${b.slug}`}
+            >
               <div className="bc-main">
                 <div className="bc-head">
                   <h3>{b.name}</h3>
@@ -73,12 +103,16 @@ export function BenchmarksPanel({ onRanResult }: { onRanResult?: () => void }) {
                     <span className="metric metric-empty">not run yet</span>
                   )}
                 </div>
+                <span className="bc-history">View history →</span>
               </div>
               <div className="actions">
                 <button
                   className="btn btn-primary"
                   disabled={running !== null}
-                  onClick={() => run(b.slug)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    run(b.slug);
+                  }}
                   data-testid={`run-${b.slug}`}
                 >
                   {isRunning ? "Running…" : lr ? "Re-run" : "Run"}

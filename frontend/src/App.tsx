@@ -8,7 +8,7 @@ type Tab = "benchmarks" | "chat" | "results";
 const VIEWS: Record<Tab, { title: string; subtitle: string }> = {
   benchmarks: { title: "Benchmarks", subtitle: "Run the suite against the on-device model" },
   chat: { title: "Chat", subtitle: "Stream responses with time-to-first-token" },
-  results: { title: "Results", subtitle: "History, scores, and latency breakdowns" },
+  results: { title: "Results", subtitle: "All runs across every benchmark" },
 };
 
 export function App() {

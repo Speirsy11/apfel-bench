@@ -21,10 +21,9 @@ export async function listBenchmarks(): Promise<BenchmarkMeta[]> {
   return jsonOrThrow<BenchmarkMeta[]>(await fetch(`${BASE}/api/benchmarks`));
 }
 
-export async function listResults(limit = 50): Promise<BenchmarkResult[]> {
-  return jsonOrThrow<BenchmarkResult[]>(
-    await fetch(`${BASE}/api/results?limit=${limit}`),
-  );
+export async function listResults(limit = 50, benchmark?: string): Promise<BenchmarkResult[]> {
+  const qs = benchmark ? `?limit=${limit}&benchmark=${encodeURIComponent(benchmark)}` : `?limit=${limit}`;
+  return jsonOrThrow<BenchmarkResult[]>(await fetch(`${BASE}/api/results${qs}`));
 }
 
 export async function runBenchmark(slug: string): Promise<BenchmarkResult> {

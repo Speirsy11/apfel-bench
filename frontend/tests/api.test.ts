@@ -25,6 +25,13 @@ describe("api client", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/results?limit=10");
   });
 
+  it("listResults appends a benchmark filter when given", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await listResults(50, "smoke");
+    expect(fetchMock).toHaveBeenCalledWith("/api/results?limit=50&benchmark=smoke");
+  });
+
   it("runBenchmark POSTs to /api/benchmarks/{slug}/run", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ benchmark: "smoke", score: 1.0 }), { status: 200 }),
